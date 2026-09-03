@@ -158,8 +158,23 @@ public class MarkdownWriter {
                 // Normal fast path
                 buffer.append(s);
             } else {
-                for (int i = 0; i < s.length(); i++) {
-                    append(s.charAt(i), escape);
+                // Append the characters that don't need escaping in bulk, a span at a time.
+                // Appending one character at a time is a lot slower for most Appendable
+                // implementations (e.g. Writer, where each char is a synchronized call).
+                int end = s.length();
+                int start = 0;
+                for (int i = 0; i < end; i++) {
+                    char c = s.charAt(i);
+                    if (needsEscaping(c, escape)) {
+                        if (start < i) {
+                            buffer.append(s, start, i);
+                        }
+                        appendEscaped(c);
+                        start = i + 1;
+                    }
+                }
+                if (start < end) {
+                    buffer.append(s, start, end);
                 }
             }
         } catch (IOException e) {
@@ -221,14 +236,18 @@ public class MarkdownWriter {
 
     private void append(char c, CharMatcher escape) throws IOException {
         if (needsEscaping(c, escape)) {
-            if (c == '\n') {
-                // Can't escape this with \, use numeric character reference
-                buffer.append("&#10;");
-            } else {
-                buffer.append('\\');
-                buffer.append(c);
-            }
+            appendEscaped(c);
         } else {
+            buffer.append(c);
+        }
+    }
+
+    private void appendEscaped(char c) throws IOException {
+        if (c == '\n') {
+            // Can't escape this with \, use numeric character reference
+            buffer.append("&#10;");
+        } else {
+            buffer.append('\\');
             buffer.append(c);
         }
     }
