@@ -158,24 +158,7 @@ public class MarkdownWriter {
                 // Normal fast path
                 buffer.append(s);
             } else {
-                // Append the characters that don't need escaping in bulk, a span at a time.
-                // Appending one character at a time is a lot slower for most Appendable
-                // implementations (e.g. Writer, where each char is a synchronized call).
-                int end = s.length();
-                int start = 0;
-                for (int i = 0; i < end; i++) {
-                    char c = s.charAt(i);
-                    if (needsEscaping(c, escape)) {
-                        if (start < i) {
-                            buffer.append(s, start, i);
-                        }
-                        appendEscaped(c);
-                        start = i + 1;
-                    }
-                }
-                if (start < end) {
-                    buffer.append(s, start, end);
-                }
+                append(s, escape);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -231,6 +214,26 @@ public class MarkdownWriter {
                 writePrefixes();
             }
             blockSeparator = 0;
+        }
+    }
+
+    private void append(String s, CharMatcher escape) throws IOException {
+        // Append unescaped spans in bulk; per-char appends are slow for most Appendables
+        // (e.g. Writer, where each char is a synchronized call).
+        int end = s.length();
+        int start = 0;
+        for (int i = 0; i < end; i++) {
+            char c = s.charAt(i);
+            if (needsEscaping(c, escape)) {
+                if (start < i) {
+                    buffer.append(s, start, i);
+                }
+                appendEscaped(c);
+                start = i + 1;
+            }
+        }
+        if (start < end) {
+            buffer.append(s, start, end);
         }
     }
 
